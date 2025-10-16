@@ -53,7 +53,7 @@ def generate_gemma_report(image_filename, features, classification_result):
     try:
         print("正在呼叫 Gemma 生成詳細報告...")
         response = ollama.chat(
-            model='gemma:4b-it-qat',
+            model='gemma3:4b-it-qat',
             messages=[{'role': 'user', 'content': prompt}]
         )
         report = response['message']['content']
