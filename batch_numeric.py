@@ -40,7 +40,16 @@ def process_all_images():
             continue
             
         # 步驟 2: PNN 進行分類 (使用升級版)
-        classification_result = pnn_model.classify_breed(features)
+        frontend_eye_toggle = 1.0     # 假設眼睛正常
+        frontend_nose_toggle = 1.0    # 假設鼻子正常
+        frontend_clothes_toggle = 1.0 # 假設沒穿衣服
+
+        classification_result = pnn_model.classify_breed(
+            features, 
+            eye_toggle=frontend_eye_toggle, 
+            nose_toggle=frontend_nose_toggle, 
+            clothes_toggle=frontend_clothes_toggle
+        )
         print(f"PNN 分類結果: {classification_result}")
         
         # 步驟 3: Gemma 生成報告 (使用升級版)
