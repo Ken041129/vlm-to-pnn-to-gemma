@@ -1,8 +1,8 @@
-# pnn_model.py (已升級為 8 特徵 + 加權 + 前端調紐)
+# pnn_model.py (最終版：8特徵 + 加權 + 懲罰 + 調紐 + 閾值)
 
 import numpy as np
 
-# 您的 8 特徵理想向量 (保持不變)
+# 您的 8 特徵理想向量
 IDEAL_VECTORS = {
     "美國比特鬥牛犬 (APBT)": {
         "ShoulderHeight_norm": 0.78, "BodyWeight_norm": 0.60, "MuzzleHeadRatio": 0.70,
@@ -26,7 +26,7 @@ IDEAL_VECTORS = {
     },
 }
 
-# 您的特徵權重 (保持不變)
+# 您的特徵權重
 IDEAL_VECTORS_WEIGHTS = {
     "美國比特鬥牛犬 (APBT)": {
         "ShoulderHeight_norm": 1.0, "BodyWeight_norm": 1.0, "MuzzleHeadRatio": 1.0,
@@ -50,26 +50,20 @@ IDEAL_VECTORS_WEIGHTS = {
     },
 }
 
+# 管制犬懲罰
 REGULATED_BREEDS = ["美國比特鬥牛犬 (APBT)", "美國史大佛夏牛頭犬 (AmStaff)"]
 REGULATED_PENALTY_MULTIPLIER = 1.15
 
-# --- 1. 關鍵修改：修改函式簽名 ---
-# 我們加入了三個新的參數，並給予 1.0 (代表"啟用/可信") 的預設值
+# 否決閾值
+DISTANCE_THRESHOLD = 2.0 # 這是可調參數
+
+
 def classify_breed(feature_dict, 
                    eye_toggle=1.0, 
                    nose_toggle=1.0, 
                    clothes_toggle=1.0):
     """
     計算輸入特徵與四種理想向量的「加權」距離，找出最可能的犬種。
-
-    Args:
-        feature_dict (dict): 從 VLM 提取的特徵字典。
-        eye_toggle (float): 前端傳來的 "眼睛" 可信度 (0.0=不可信, 1.0=可信)。
-        nose_toggle (float): 前端傳來的 "鼻子" 可信度 (0.0=不可信, 1.0=可信)。
-        clothes_toggle (float): 前端傳來的 "衣服" 影響 (0.0=有穿/不可信, 1.0=沒穿/可信)。
-
-    Returns:
-        dict: 包含最可能犬種和是否受管制的字典。
     """
     if not feature_dict:
         return {"breed": "未知", "status": "無法分類"}
@@ -97,10 +91,9 @@ def classify_breed(feature_dict,
                 input_val = input_vector_dict[k]
                 ideal_val = ideal_vector[k]
                 
-                # 獲取基礎權重
                 base_weight = ideal_weights[k]
                 
-                # --- 2. 關鍵修改：應用前端調紐 ---
+                # 應用前端調紐
                 final_weight = base_weight
                 if k == "BlueEyesForbidden":
                     final_weight *= eye_toggle
@@ -108,13 +101,12 @@ def classify_breed(feature_dict,
                     final_weight *= nose_toggle
                 elif k == "BodyWeight_norm":
                     final_weight *= clothes_toggle
-                # --- 結束修改 ---
                 
-                # 計算單一特徵的加權距離
                 weighted_distance_sq += ((input_val - ideal_val) ** 2) * final_weight
             
             distance = np.sqrt(weighted_distance_sq)
             
+            # 應用管制犬懲罰
             if breed in REGULATED_BREEDS:
                 distance *= REGULATED_PENALTY_MULTIPLIER
             
@@ -123,6 +115,11 @@ def classify_breed(feature_dict,
             if distance < min_distance:
                 min_distance = distance
                 best_match_breed = breed
+
+        # 應用否決閾值
+        if min_distance > DISTANCE_THRESHOLD:
+            print(f"否決！最小距離 {min_distance:.4f} > 閾值 {DISTANCE_THRESHOLD}。")
+            best_match_breed = "其他犬種" # 強制覆寫分類結果
 
         status = "管制犬種" if best_match_breed in REGULATED_BREEDS else "非管制犬種"
         
