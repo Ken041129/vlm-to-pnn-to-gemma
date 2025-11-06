@@ -1,4 +1,4 @@
-# gemma_report.py 
+# gemma_report.py (最終版：包含「強化版守門員」和「智慧衝突判斷」)
 
 import ollama
 import base64
@@ -10,7 +10,7 @@ def image_to_base64(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
-# --- 2. 「二次鑑定」函式 (不變) ---
+# --- 2. 「二次鑑定」函式 (***已升級為強化版***) ---
 def get_preliminary_judgment(image_path):
     """
     第二次呼叫 VLM，只為了獲取它的「初步專家意見」。
@@ -20,17 +20,28 @@ def get_preliminary_judgment(image_path):
 
     b64_image = image_to_base64(image_path)
     
+    # --- 關鍵修改：使用我們最新的「強化版」Prompt ---
     prompt = """
     你是一位頂尖的犬隻品種鑑定專家。
     請只看這張圖片，憑你的第一直覺，判斷這隻狗最接近以下哪個分類？
+
+    [目標犬種]
     - 美國比特鬥牛犬 (APBT)
     - 美國史大佛夏牛頭犬 (AmStaff)
     - 史大佛夏牛頭犬 (SBT)
     - 美國惡霸犬 (American Bully)
     - 其他犬種
 
+    [重要規則]
+    如果圖片中的犬隻明顯是 拳師犬(Boxer), 法國鬥牛犬(French Bulldog), 
+    英國鬥牛犬(Bulldog), 阿根廷杜告犬 (Dogo Argentino), 土佐犬 (Tosa), 
+    紐波利頓犬(Neapolitan Mastiff), 波士頓㹴(Boston Terrier),
+    黃金獵犬(Golden Retriever), 或任何其他非[目標犬種]列表中的狗，
+    請一律歸類為「其他犬種」。
+
     請只回傳你選擇的「一個」分類名稱，不要有任何其他文字或解釋。
     """
+    # --- 結束修改 ---
     
     try:
         print("正在呼叫 VLM 進行「初步專家意見」鑑定...")
@@ -52,12 +63,12 @@ def get_preliminary_judgment(image_path):
         print(f"獲取 VLM 初步意見時發生錯誤: {e}")
         return "鑑定失敗"
 
-# 知識庫 (不變)
+# 知識庫 
 PDF_KNOWLEDGE = {
     "美國比特鬥牛犬 (APBT)": "管制犬種。特徵：頭呈楔形（長三角柱型），兩耳之間顱骨寬平或略圓，吻部與頭顱長度比例約為2:3。高耳位。眼睛可為除了藍色以外的所有顏色，中等大小，圓形。鼻子大且鼻孔寬，鼻子可以是任何顏色。胸腔寬度不超過其深度",
-    "美國史大佛夏牛頭犬 (AmStaff)": "管制犬種。特徵：顱骨寬，吻部背側呈圓弧狀，嘴唇平貼不鬆弛。高耳位的短小玫瑰耳或半折耳，少許耳尖向外側或向前折，可看見耳道。眼睛深色且圓。鼻子絕對是黑色的。短而濃密的毛",
-    "史大佛夏牛頭犬 (SBT)": "非管制犬種。特徵：顱骨寬且短，吻部短，嘴唇平貼不鬆弛。眼睛中等大小，深色且圓，但有時眼睛顏色與毛色可能相關，眼圈顏色多為深色。鼻子絕對是黑色的",
-    "美國惡霸犬 (American Bully)": "非管制犬種。特徵：顱骨寬闊，吻部短且寬呈現輕微立方體，吻部長度較顱骨長度短，吻部約占頭部長度25-35%。高耳位。眼睛中等大小，橢圓型到杏型，不可為藍色。鼻子大且鼻孔寬，鼻子可以是任何顏色。"
+    "美國史大佛夏牛頭犬 (AmStaff)": "管制犬種。特徵：顱骨寬，吻部背側呈圓弧狀，嘴唇平貼不鬆弛。高耳位的短小玫瑰耳或半折耳，少許耳尖向外側或向前折，可看見耳道。鼻子絕對是黑色的。短而濃密的毛",
+    "史大佛夏牛頭犬 (SBT)": "非管制犬種。特徵：顱骨寬且短，吻部短，嘴唇平貼不鬆弛。鼻子絕對是黑色的",
+    "美國惡霸犬 (American Bully)": "非管制犬種。特徵：顱骨寬闊，吻部短且寬呈現輕微立方體，吻部長度較顱骨長度短，吻部約占頭部長度25-35%。高耳位。眼睛不可為藍色。鼻子大且鼻孔寬，鼻子可以是任何顏色。"
 }
 
 def format_features_for_report(features):
@@ -71,7 +82,7 @@ def format_features_for_report(features):
         report_lines.append(f"- {key}: {formatted_value}")
     return "\n".join(report_lines)
 
-# --- 3. 修改主函式：加入 VLM 否決邏輯 ---
+# --- 主函式：包含所有否決邏輯和「智慧衝突判斷」 ---
 def generate_gemma_report(image_filename, features, classification_result, image_path):
     """
     使用 Gemma 生成包含「PNN計算」與「VLM初判」對比的詳細分析報告。
@@ -79,13 +90,10 @@ def generate_gemma_report(image_filename, features, classification_result, image
     if not features:
         return f"### 圖片 '{image_filename}' 分析報告 ###\n\n無法生成報告，因為視覺特徵提取失敗。"
 
-    # PNN 的結果 (可能被愚弄)
     pnn_breed = classification_result['breed']
     
-    # VLM 的初步意見 (可靠的守門員)
     prelim_judgment = get_preliminary_judgment(image_path)
     
-    # 目標犬種清單 (用於檢查 VLM 的意見)
     target_breeds_check = [
         "american pit bull terrier", "apbt",
         "american staffordshire terrier", "amstaff",
@@ -99,12 +107,12 @@ def generate_gemma_report(image_filename, features, classification_result, image
             is_target_breed = True
             break
             
-    final_breed = pnn_breed # 最終結論先採用 PNN 的計算結果
+    final_breed = pnn_breed 
     final_status = classification_result['status']
-    judgment_source_note = "" # 用於報告中的額外說明
+    judgment_source_note = "" 
 
     if not is_target_breed:
-        # VLM 一票否決 (例如 VLM 說是 "黃金獵犬")
+        # VLM 一票否決 (例如 "黃金獵犬" 或 "法國鬥牛犬")
         print(f"VLM 否決！ 初步意見 '{prelim_judgment}' 非目標犬種。")
         final_breed = "其他犬種" 
         final_status = "非管制犬種"
@@ -121,18 +129,15 @@ def generate_gemma_report(image_filename, features, classification_result, image
     features_list_str = format_features_for_report(features)
     prompt = ""
 
-    # --- 4. 關鍵修改：為最終報告的 Prompt 準備圖片 ---
     try:
         b64_image_for_report = image_to_base64(image_path)
         image_list_for_report = [b64_image_for_report]
     except Exception as e:
         print(f"錯誤：無法編碼圖片 {image_path} 以用於最終報告: {e}")
-        image_list_for_report = [] # 報告將在沒有圖片的情況下生成
-    # --- 結束修改 ---
-
+        image_list_for_report = [] 
     
     if final_breed == "其他犬種":
-        # --- 「其他犬種」的報告模板 (升級) ---
+        # --- 「其他犬種」的報告模板 (升級版) ---
         prompt = f"""
         你是一位專業的犬隻品種鑑定報告撰寫員。
         **你現在正在查看一張照片。**
@@ -158,25 +163,17 @@ def generate_gemma_report(image_filename, features, classification_result, image
         5.  **四、免責聲明**: 加入「本報告僅為基於提供之照片與分析指南的初步AI評估，不具法律效力。最終品種認定應由專業獸醫師或相關權責單位進行。」
         """
     else:
-        # --- 「四種比特犬」的報告模板 (升級) ---
+        # --- 「四種比特犬」的報告模板 (升級版) ---
         
-        # 建立「一致性」的說明
+        # --- 關鍵修改：使用更聰明的「智慧衝突判斷」---
         consistency_note = ""
-        if prelim_judgment == pnn_breed:
-            consistency_note = f"系統判斷一致：VLM 初步專家意見與 PNN 嚴格計算結果均為「{final_breed}」。"
+        # 檢查 VLM 的初判是否包含了 PNN 的結果 (例如 VLM 說 "APBT", PNN 也說 "APBT")
+        # .split(" ")[-1] 取得 (APBT), .strip("()") 取得 APBT
+        if final_breed.lower().split(" ")[-1].strip("()") in prelim_judgment.lower():
+             consistency_note = f"系統判斷一致：VLM 初步專家意見 ({prelim_judgment}) 與 PNN 嚴格計算結果 ({final_breed}) 均指向同一犬種。"
         else:
-            # 處理 VLM 說 APBT 而 PNN 說 AmStaff 的情況
-            is_prelim_target = False
-            for target in target_breeds_check:
-                if target in prelim_judgment.lower():
-                    is_prelim_target = True
-                    break
-            
-            if is_prelim_target: # VLM 意見也是四種之一
-                consistency_note = f"**系統判斷衝突**：VLM 初步專家意見為「{prelim_judgment}」，但 PNN 模組的嚴格特徵計算結果為「{final_breed}」。本報告將以 PNN 的計算結果為最終結論。"
-            else: # VLM 意見是 "其他犬種" (但 PNN 覆寫了它) - 這種情況理論上已被 "if final_breed == '其他犬種'" 捕捉，但作為備援
-                consistency_note = f"**系統判斷衝突**：VLM 初步專家意見為「{prelim_judgment}」，但 PNN 模組的嚴格特徵計算結果為「{final_breed}」。本報告將以 PNN 的計算結果為最終結論。"
-
+             consistency_note = f"**系統判斷衝突**：VLM 初步專家意見為「{prelim_judgment}」，但 PNN 模組的嚴格特徵計算結果為「{final_breed}」。本報告將以 PNN 的計算結果為最終結論。"
+        # --- 結束修改 ---
 
         prompt = f"""
         你是一位專業的犬隻品種鑑定報告撰寫員。
@@ -215,18 +212,16 @@ def generate_gemma_report(image_filename, features, classification_result, image
     
     try:
         print("正在呼叫 Gemma (VLM 報告模式) 生成最終報告...")
-        # --- 5. 關鍵修改：在呼叫中傳入圖片 ---
         response = ollama.chat(
             model='gemma3:27b-it-qat', # 使用 LLM/VLM 模型
             messages=[
                 {
                     'role': 'user',
                     'content': prompt,
-                    'images': image_list_for_report # <-- 在此傳入圖片
+                    'images': image_list_for_report 
                 }
             ]
         )
-        # --- 結束修改 ---
         
         report = response['message']['content']
         print("Gemma 報告生成完畢。")
