@@ -10,17 +10,17 @@ IDEAL_VECTORS = {
         "BodySquareness": 0.55, "HeadBreadthIndex": 0.60,
     },
     "美國史大佛夏牛頭犬 (AmStaff)": {
-        "ShoulderHeight_norm": 0.75, "BodyWeight_norm": 0.75, "MuzzleHeadRatio": 0.45,
+        "ShoulderHeight_norm": 0.75, "BodyWeight_norm": 0.75, "MuzzleHeadRatio": 0.48,
         "BlackNoseRequired": 1.00, "BlueEyesForbidden": 1.00, "ChestWidthDepth": 0.65,
         "BodySquareness": 0.60, "HeadBreadthIndex": 0.65
     },
     "史大佛夏牛頭犬 (SBT)": {
-        "ShoulderHeight_norm": 0.40, "BodyWeight_norm": 0.70, "MuzzleHeadRatio": 0.50,
+        "ShoulderHeight_norm": 0.40, "BodyWeight_norm": 0.78, "MuzzleHeadRatio": 0.40,
         "BlackNoseRequired": 1.00, "BlueEyesForbidden": 1.00, "ChestWidthDepth": 0.80,
         "BodySquareness": 0.65, "HeadBreadthIndex": 0.75
     },
     "美國惡霸犬 (American Bully)": {
-        "ShoulderHeight_norm": 0.35, "BodyWeight_norm": 0.95, "MuzzleHeadRatio": 0.35,
+        "ShoulderHeight_norm": 0.30, "BodyWeight_norm": 0.95, "MuzzleHeadRatio": 0.25,
         "BlackNoseRequired": 0.00, "BlueEyesForbidden": 1.00, "ChestWidthDepth": 0.95,
         "BodySquareness": 0.80, "HeadBreadthIndex": 0.95,
     },
