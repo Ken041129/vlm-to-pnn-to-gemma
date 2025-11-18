@@ -26,7 +26,7 @@ def get_features_from_vlm(image_path):
         請只回傳嚴格的 JSON 格式，不要包含其他文字或說明。
 
         特徵說明如下：
-        1) ShoulderHeight_norm：目視推估肩高的相對值，正規化到 0~1（越高越接近 1，越矮越接近 0）。
+        1) ShoulderHeight_norm：目視推估肩高的相對值，正規化到 0~1（越高越接近 1，越矮越接近 0，如 Bully通常為 0.3~0.4）。
         2) BodyWeight_norm：目視推估體重或肌肉量的相對值，正規化到 0~1（越壯或重越接近 1）。
         3) MuzzleHeadRatio：吻長 ÷ 頭長。長吻（如 APBT）≈ 高分；短吻或立方（如 Bully）≈ 低分。
         4) BlackNoseRequired：鼻子是否明顯為黑色。黑色=1，其他顏色=0，不確定=0.5。
