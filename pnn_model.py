@@ -1,4 +1,4 @@
-# pnn_model.py
+# pnn_model.py (最終版：8特徵 + 加權 + 懲罰 + 調紐 + 閾值)
 
 import numpy as np
 
@@ -52,10 +52,10 @@ IDEAL_VECTORS_WEIGHTS = {
 
 # 管制犬懲罰
 REGULATED_BREEDS = ["美國比特鬥牛犬 (APBT)", "美國史大佛夏牛頭犬 (AmStaff)"]
-REGULATED_PENALTY_MULTIPLIER = 1.15
+REGULATED_PENALTY_MULTIPLIER = 1.10
 
 # 否決閾值
-DISTANCE_THRESHOLD = 2.0 # 這是可調參數
+DISTANCE_THRESHOLD = 2.0 # 可調參數
 
 
 def classify_breed(feature_dict, 
