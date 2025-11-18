@@ -1,16 +1,26 @@
-# gemma_report.py 
+# gemma_report.py
 
 import ollama
 import base64
 import os
+# --- 1. 新增：從 pnn_model 導入 IDEAL_VECTORS ---
+# 這樣我們就可以在 Prompt 中使用 PNN 的理想值
+try:
+    from pnn_model import IDEAL_VECTORS
+except ImportError:
+    print("錯誤：無法從 pnn_model.py 導入 IDEAL_VECTORS。")
+    # 如果導入失敗，使用一個備用的（這不應該發生，但作為安全措施）
+    IDEAL_VECTORS = {"美國比特鬥牛犬 (APBT)": {"MuzzleHeadRatio": 0.70}}
+# --- 結束新增 ---
 
-# --- 1. 圖片轉 Base64 輔助函式  ---
+
+# --- 2. 圖片轉 Base64 輔助函式  ---
 def image_to_base64(image_path):
     """讀取圖片檔並回傳 Base64 編碼的字串"""
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
-# --- 2. 「二次鑑定」函式  ---
+# --- 3. 「二次鑑定」函式  ---
 def get_preliminary_judgment(image_path):
     """
     第二次呼叫 VLM，只為了獲取它的「初步專家意見」。
@@ -79,16 +89,31 @@ def format_features_for_report(features):
         report_lines.append(f"- {key}: {formatted_value}")
     return "\n".join(report_lines)
 
+# --- 4. 新增：將 IDEAL_VECTORS 轉換為字串的輔助函式 ---
+def format_vectors_for_prompt():
+    """將 PNN 的理想值轉換為給 VLM 看的字串"""
+    lines = []
+    for breed, features in IDEAL_VECTORS.items():
+        # 我們只挑選幾個最關鍵的特徵放入 Prompt，避免太長
+        line = (
+            f"- {breed}:\n"
+            f"  - MuzzleHeadRatio (理想值): {features['MuzzleHeadRatio']:.2f}\n"
+            f"  - HeadBreadthIndex (理想值): {features['HeadBreadthIndex']:.2f}\n"
+            f"  - BodySquareness (理想值): {features['BodySquareness']:.2f}\n"
+            f"  - BlackNoseRequired (理想值): {features['BlackNoseRequired']:.2f}"
+        )
+        lines.append(line)
+    return "\n".join(lines)
+# --- 結束新增 ---
+
 # --- 主函式：已升級 VLM 否決權優先邏輯 ---
 def generate_gemma_report(image_filename, features, classification_result, image_path):
     """
     使用 Gemma 生成包含「PNN計算」與「VLM初判」對比的詳細分析報告。
     """
     
-    # 獲取 VLM 的初步意見 (可靠的守門員)
     prelim_judgment = get_preliminary_judgment(image_path)
     
-    # 目標犬種清單 (用於檢查 VLM 的意見)
     target_breeds_check = [
         "american pit bull terrier", "apbt",
         "american staffordshire terrier", "amstaff",
@@ -111,11 +136,10 @@ def generate_gemma_report(image_filename, features, classification_result, image
         print(f"錯誤：無法編碼圖片 {image_path} 以用於最終報告: {e}")
         image_list_for_report = [] 
     
-    # --- 關鍵修改：VLM 否決權優先 ---
     if not is_target_breed:
         #
         # --- 情況 A：VLM 判斷為「其他犬種」(例如 "黃金獵犬") ---
-        # VLM 已否決。我們完全信任 VLM，**不再顯示 PNN 的錯誤數據**。
+        # (此區塊不變)
         #
         print(f"VLM 否決！ 初步意見 '{prelim_judgment}' 非目標犬種。將使用簡化報告。")
         
@@ -146,19 +170,18 @@ def generate_gemma_report(image_filename, features, classification_result, image
     else:
         #
         # --- 情況 B：VLM 判斷為「四種比特犬之一」 ---
-        # VLM 認為值得分析。現在我們才啟用 PNN 系統進行交叉驗證。
         #
         
-        # 只有在 VLM 認為是目標犬種時，我們才使用 PNN 的結果
         pnn_breed = classification_result['breed']
-        final_breed = pnn_breed # 最終結論採用 PNN 的計算結果
+        final_breed = pnn_breed 
         final_status = classification_result['status']
         judgment_source_note = ""
-        features_list_str = format_features_for_report(features) # 格式化 PNN 分數
+        features_list_str = format_features_for_report(features) 
         
         if final_breed == "其他犬種":
             #
             # --- 子情況 B1: VLM 說 "APBT"，但 PNN 否決 (距離太遠) ---
+            # (此區塊不變)
             #
             judgment_source_note = f"**系統判斷衝突**：VLM 初步專家意見為「{prelim_judgment}」，但 PNN 模組基於特徵分數的嚴格計算判定其**不符合**任何已知標準（距離超過閾值）。本報告將以 PNN 的計算結果為最終結論。"
 
@@ -183,7 +206,7 @@ def generate_gemma_report(image_filename, features, classification_result, image
             3.  **二、VLM 特徵分數**: 列出 VLM 模組給出的 8 項原始分數：
                 {features_list_str}
             4.  **三、鑑定依據**: 說明此犬隻被判定為「其他犬種」的理由（PNN 計算距離超過 {classification_result.get('threshold', 'N/A')} 的閾值）。
-            5.  **四、免責聲明**: 加入「本報告僅為基於提供之照片與分析指南的初步AI評估，不具法律效力。最終品種認定應由專業獸醫師或相關權責單位進行。」
+            5.  **四、免責聲明**: 加入「本報告僅為基於提供之照片與分析指南的初步AI評G估，不具法律效力。最終品種認定應由專業獸醫師或相關權責單位進行。」
             """
         else:
             #
@@ -195,6 +218,11 @@ def generate_gemma_report(image_filename, features, classification_result, image
             else:
                  consistency_note = f"**系統判斷衝突**：VLM 初步專家意見為「{prelim_judgment}」，但 PNN 模組的嚴格特徵計算結果為「{final_breed}」。本報告將以 PNN 的計算結果為最終結論。"
 
+            # --- *** 這裡是您要求的修改 *** ---
+            
+            # 獲取 PNN 理想值小抄
+            pnn_vectors_str = format_vectors_for_prompt()
+            
             prompt = f"""
             你是一位專業的犬隻品種鑑定報告撰寫員。
             **你現在正在查看一張照片**，同時你手上有 VLM 模組的「初步意見」和 PNN 模組的「客觀計算」結果。
@@ -208,7 +236,11 @@ def generate_gemma_report(image_filename, features, classification_result, image
             - **最終管制狀態:** {final_status}
 
             ---
-            **知識庫 (摘錄自農業部比特犬分析指南):**
+            **知識庫 1 (PNN 理想值小抄):**
+            (這是在 pnn_model.py 中定義的理想分數)
+            {pnn_vectors_str}
+            
+            **知識庫 2 (PDF 文字描述):**
             - APBT: {PDF_KNOWLEDGE["美國比特鬥牛犬 (APBT)"]}
             - AmStaff: {PDF_KNOWLEDGE["美國史大佛夏牛頭犬 (AmStaff)"]}
             - SBT: {PDF_KNOWLEDGE["史大佛夏牛頭犬 (SBT)"]}
@@ -224,11 +256,16 @@ def generate_gemma_report(image_filename, features, classification_result, image
                 {features_list_str}
             4.  **三、PNN 鑑定依據**: 
                 - **請看著你眼前的照片**，將它的**實際外觀**與 PNN 的計算結果（{final_breed}）和特徵分數進行交叉比對。
-                - **舉例說明**：例如，如果 PNN 判斷為 AmStaff，請說明「如照片所示，此犬隻的吻部確實較短、頭骨寬闊... 這與 PNN 計算出的低 MuzzleHeadRatio 分數 (xxx) 和高 HeadBreadthIndex 分數 (xxx) 一致。」
+                - **舉例說明**：例如，如果 PNN 判斷為 AmStaff，請說明「如照片所示，此犬隻的吻部確實較短、頭骨寬闊... 這與 PNN 計算出的低 MuzzleHeadRatio 分數 ({features.get('MuzzleHeadRatio', 'N/A')}) 和高 HeadBreadthIndex 分數 ({features.get('HeadBreadthIndex', 'N/A')}) 一致。」
             5.  **四、品種比較分析**: 
-                - **請繼續看著照片**，解釋為什麼它**不**是其他三種易混淆的犬種，並將你的視覺觀察與特徵分數連結起來。
+                - **[新指令]** **請繼續看著照片**，將此犬隻（{final_breed}）與其他三種易混淆的犬種進行**客觀的特徵比對**。
+                - **[新指令]** 你的目標是**找出關鍵的差異點**，以說明為何 PNN 判定它為「{final_breed}」。
+                - **[強制規則]** 你**必須**使用「二、VLM 特徵分數」中的**具體數值**，並將其與「知識庫 1 (PNN 理想值小抄)」中的**理想值**進行**正確的數學比較**。
+                - **[新指令]** 如果某個特徵**相符**（例如鼻子都是黑色），**請先誠實地指出這一點**，然後**再強調其他不相符的特徵**。
+                - **[範例]**：「...與 APBT 進行比較：此犬隻的 MuzzleHeadRatio 分數為 {features.get('MuzzleHeadRatio', 'N/A')}，這**遠低於** APBT 的理想值 (0.70)，這是一個關鍵差異點。」
             6.  **五、免責聲明**: 加入「本報告僅為基於提供之照片與分析指南的初步AI評估，不具法律效力。最終品種認定應由專業獸醫師或相關權責單位進行。」
             """
+            # --- *** 修改結束 *** ---
     # --- 結束邏輯 ---
     
     try:
@@ -247,9 +284,9 @@ def generate_gemma_report(image_filename, features, classification_result, image
         report = response['message']['content']
         print("Gemma 報告生成完畢。")
         # --- (回傳值) ---
-        return report # <-- batch_numeric.py 預期一個回傳值
+        return report # <-- 您的 batch_numeric.py 預期一個回傳值
     except Exception as e:
         error_msg = f"呼叫 Gemma (VLM 報告模式) 時發生錯誤: {e}"
         print(error_msg)
         # --- (回傳值) ---
-        return error_msg # <-- batch_numeric.py 預期一個回傳值
+        return error_msg # <-- 您的 batch_numeric.py 預期一個回傳值
